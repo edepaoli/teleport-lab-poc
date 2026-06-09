@@ -1,0 +1,186 @@
+services:
+  teleport-auth:
+    build:
+      context: ./teleport
+      dockerfile: Dockerfile
+      args:
+        TELEPORT_VERSION: ${TELEPORT_VERSION:-17.7.0}
+    image: teleport-lab-poc-teleport-runtime:${TELEPORT_VERSION:-17.7.0}
+    pull_policy: never
+    command: ["teleport", "start", "--config=/etc/teleport/teleport.yaml"]
+    container_name: teleport-auth
+    hostname: teleport-auth
+    networks: [teleport-lab]
+    ports:
+      - "3025:3025"
+    volumes:
+      - teleport-auth-data:/var/lib/teleport
+      - ./teleport/auth/teleport.yaml:/etc/teleport/teleport.yaml:ro
+      - ./teleport/roles:/opt/teleport-lab/roles:ro
+      - ./teleport/scripts:/opt/teleport-lab/scripts:ro
+      - ./vault-log/logs/teleport-auth:/var/log/teleport
+      - ./vault-log/logs/audit:/var/lib/teleport/audit
+
+  teleport-proxy-a:
+    image: teleport-lab-poc-teleport-runtime:${TELEPORT_VERSION:-17.7.0}
+    pull_policy: never
+    command: ["teleport", "start", "--config=/etc/teleport/teleport.yaml"]
+    container_name: teleport-proxy-a
+    hostname: teleport-proxy-a
+    depends_on: [teleport-auth]
+    networks: [teleport-lab]
+    ports:
+      - "${PROXY_A_WEB_PORT:-3080}:3080"
+      - "${PROXY_A_SSH_PORT:-3023}:3023"
+      - "${PROXY_A_TUNNEL_PORT:-3024}:3024"
+    volumes:
+      - teleport-proxy-a-data:/var/lib/teleport
+      - ./teleport/proxy-a/teleport.yaml:/etc/teleport/teleport.yaml:ro
+      - ./teleport/proxy-a/certs:/etc/teleport/certs:ro
+      - ./vault-log/logs/teleport-proxy-a:/var/log/teleport
+
+  teleport-proxy-b:
+    image: teleport-lab-poc-teleport-runtime:${TELEPORT_VERSION:-17.7.0}
+    pull_policy: never
+    command: ["teleport", "start", "--config=/etc/teleport/teleport.yaml"]
+    container_name: teleport-proxy-b
+    hostname: teleport-proxy-b
+    depends_on: [teleport-auth]
+    networks: [teleport-lab]
+    ports:
+      - "${PROXY_B_WEB_PORT:-3180}:3080"
+      - "${PROXY_B_SSH_PORT:-3123}:3023"
+      - "${PROXY_B_TUNNEL_PORT:-3124}:3024"
+    volumes:
+      - teleport-proxy-b-data:/var/lib/teleport
+      - ./teleport/proxy-b/teleport.yaml:/etc/teleport/teleport.yaml:ro
+      - ./teleport/proxy-b/certs:/etc/teleport/certs:ro
+      - ./vault-log/logs/teleport-proxy-b:/var/log/teleport
+
+  lab-linux-01:
+    build:
+      context: ./nodes/node-linux-01
+      args:
+        TELEPORT_VERSION: ${TELEPORT_VERSION:-17.7.0}
+    container_name: lab-linux-01
+    hostname: lab-linux-01
+    depends_on: [teleport-auth]
+    networks: [teleport-lab]
+    environment:
+      NODE_NAME: lab-linux-01
+      NODE_LABELS: "env=lab,os=linux,criticality=low,group=standard"
+      TELEPORT_JOIN_TOKEN: ${TELEPORT_JOIN_TOKEN:-local-lab-join-token-change-me}
+    volumes:
+      - ./vault-log/logs/nodes/lab-linux-01:/var/log
+
+  lab-linux-02:
+    build:
+      context: ./nodes/node-linux-02
+      args:
+        TELEPORT_VERSION: ${TELEPORT_VERSION:-17.7.0}
+    container_name: lab-linux-02
+    hostname: lab-linux-02
+    depends_on: [teleport-auth]
+    networks: [teleport-lab]
+    environment:
+      NODE_NAME: lab-linux-02
+      NODE_LABELS: "env=lab,os=linux,criticality=medium,group=standard"
+      TELEPORT_JOIN_TOKEN: ${TELEPORT_JOIN_TOKEN:-local-lab-join-token-change-me}
+    volumes:
+      - ./vault-log/logs/nodes/lab-linux-02:/var/log
+
+  lab-linux-03:
+    build:
+      context: ./nodes/node-linux-03
+      args:
+        TELEPORT_VERSION: ${TELEPORT_VERSION:-17.7.0}
+    container_name: lab-linux-03
+    hostname: lab-linux-03
+    depends_on: [teleport-auth]
+    networks: [teleport-lab]
+    environment:
+      NODE_NAME: lab-linux-03
+      NODE_LABELS: "env=lab,os=linux,criticality=high,group=standard"
+      TELEPORT_JOIN_TOKEN: ${TELEPORT_JOIN_TOKEN:-local-lab-join-token-change-me}
+    volumes:
+      - ./vault-log/logs/nodes/lab-linux-03:/var/log
+
+  lab-admin-01:
+    build:
+      context: ./nodes/node-linux-admin
+      args:
+        TELEPORT_VERSION: ${TELEPORT_VERSION:-17.7.0}
+    container_name: lab-admin-01
+    hostname: lab-admin-01
+    depends_on: [teleport-auth]
+    networks: [teleport-lab]
+    environment:
+      NODE_NAME: lab-admin-01
+      NODE_LABELS: "env=lab,os=linux,criticality=high,group=admin"
+      TELEPORT_JOIN_TOKEN: ${TELEPORT_JOIN_TOKEN:-local-lab-join-token-change-me}
+    volumes:
+      - ./vault-log/logs/nodes/lab-admin-01:/var/log
+
+  vault-log:
+    build:
+      context: ./nodes/node-vault-log
+      args:
+        TELEPORT_VERSION: ${TELEPORT_VERSION:-17.7.0}
+    container_name: vault-log
+    hostname: vault-log
+    depends_on: [teleport-auth, openbao]
+    networks: [teleport-lab]
+    environment:
+      NODE_NAME: vault-log
+      NODE_LABELS: "env=lab,os=linux,criticality=high,group=vault,service=vault-log"
+      TELEPORT_JOIN_TOKEN: ${TELEPORT_JOIN_TOKEN:-local-lab-join-token-change-me}
+    volumes:
+      - ./vault-log/logs/nodes/vault-log:/var/log
+      - ./vault-log/logs:/vault-log/logs
+
+  openbao:
+    image: openbao/openbao:2.1
+    container_name: vault-log-openbao
+    hostname: vault-log-openbao
+    cap_add: ["IPC_LOCK"]
+    command: ["server", "-config=/etc/openbao/config.hcl"]
+    networks: [teleport-lab]
+    ports:
+      - "${OPENBAO_PORT:-8200}:8200"
+    environment:
+      BAO_DEV_ROOT_TOKEN_ID: ${OPENBAO_DEV_ROOT_TOKEN_ID:-dev-root-token}
+    volumes:
+      - openbao-data:/openbao/data
+      - ./vault-log/openbao/config.hcl:/etc/openbao/config.hcl:ro
+
+  fluent-bit:
+    image: fluent/fluent-bit:3.2
+    container_name: vault-log-fluent-bit
+    hostname: vault-log-fluent-bit
+    depends_on: [teleport-auth, teleport-proxy-a, teleport-proxy-b, vault-log-rsyslog]
+    networks: [teleport-lab]
+    volumes:
+      - ./vault-log/fluent-bit/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro
+      - ./vault-log/logs:/vault-log/logs
+
+  vault-log-rsyslog:
+    build:
+      context: ./vault-log/rsyslog
+    container_name: vault-log-rsyslog
+    hostname: vault-log-rsyslog
+    networks: [teleport-lab]
+    ports:
+      - "5514:514/tcp"
+      - "5514:514/udp"
+    volumes:
+      - ./vault-log/logs/rsyslog:/var/log/remote
+
+networks:
+  teleport-lab:
+    name: teleport-lab
+
+volumes:
+  teleport-auth-data:
+  teleport-proxy-a-data:
+  teleport-proxy-b-data:
+  openbao-data:

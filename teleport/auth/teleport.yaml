@@ -1,0 +1,38 @@
+version: v3
+
+teleport:
+  nodename: teleport-auth
+  data_dir: /var/lib/teleport
+  log:
+    output: /var/log/teleport/teleport.log
+    severity: INFO
+    format:
+      output: text
+  storage:
+    # Local filesystem backend for a self-contained Community Edition lab.
+    type: dir
+    path: /var/lib/teleport/backend
+    audit_events_uri:
+      - file:///var/lib/teleport/audit/events
+    audit_sessions_uri: file:///var/lib/teleport/audit/sessions
+
+auth_service:
+  enabled: "yes"
+  listen_addr: 0.0.0.0:3025
+  cluster_name: teleport-lab.local
+  session_recording: node-sync
+  proxy_listener_mode: separate
+  authentication:
+    type: local
+    second_factor: on
+    # For localhost PoC. Use the real DNS suffix of the proxy in production.
+    webauthn:
+      rp_id: localhost
+  tokens:
+    - "proxy,node:local-lab-join-token-change-me"
+
+ssh_service:
+  enabled: "no"
+
+proxy_service:
+  enabled: "no"

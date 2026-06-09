@@ -1,0 +1,14 @@
+kind: role
+version: v7
+metadata:
+  name: lab-admin
+spec:
+  allow:
+    logins: ["root", "admin", "labuser", "mario"]
+    node_labels:
+      env: ["lab"]
+    rules:
+      - resources: ["*"]
+        verbs: ["*"]
+  options:
+    max_session_ttl: 8h

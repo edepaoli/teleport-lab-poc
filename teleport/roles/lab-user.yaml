@@ -1,0 +1,13 @@
+kind: role
+version: v7
+metadata:
+  name: lab-user
+spec:
+  allow:
+    logins: ["root", "labuser", "mario"]
+    node_labels:
+      env: ["lab"]
+      group: ["standard"]
+      criticality: ["low", "medium"]
+  options:
+    max_session_ttl: 4h

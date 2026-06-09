@@ -1,0 +1,30 @@
+version: v3
+
+teleport:
+  nodename: teleport-proxy-a
+  data_dir: /var/lib/teleport
+  auth_token: local-lab-join-token-change-me
+  auth_server: teleport-auth:3025
+  log:
+    output: /var/log/teleport/teleport.log
+    severity: INFO
+    format:
+      output: text
+
+auth_service:
+  enabled: "no"
+
+ssh_service:
+  enabled: "no"
+
+proxy_service:
+  enabled: "yes"
+  web_listen_addr: 0.0.0.0:3080
+  public_addr: localhost:3080
+  listen_addr: 0.0.0.0:3023
+  ssh_public_addr: localhost:3023
+  tunnel_listen_addr: 0.0.0.0:3024
+  tunnel_public_addr: localhost:3024
+  https_keypairs:
+    - cert_file: /etc/teleport/certs/proxy-a.crt
+      key_file: /etc/teleport/certs/proxy-a.key
