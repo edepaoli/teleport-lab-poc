@@ -147,8 +147,6 @@ services:
     networks: [teleport-lab]
     ports:
       - "${OPENBAO_PORT:-8200}:8200"
-    environment:
-      BAO_DEV_ROOT_TOKEN_ID: ${OPENBAO_DEV_ROOT_TOKEN_ID:-dev-root-token}
     volumes:
       - openbao-data:/openbao/data
       - ./vault-log/openbao/config.hcl:/etc/openbao/config.hcl:ro

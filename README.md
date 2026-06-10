@@ -132,13 +132,26 @@ Teleport/Auth/Proxy files + audit events + node logs -> Fluent Bit -> rsyslog TC
 
 OpenBao e' incluso come componente futuro per password vaulting, non integrato automaticamente con Teleport e non usato come log store.
 
+Inizializza e prepara il vault demo con:
+
 ```sh
-export BAO_ADDR=http://127.0.0.1:8200
-export BAO_TOKEN=dev-root-token
-bao secrets enable -path=secret kv-v2
-bao kv put secret/lab/linux-01/root username=root password=demo-root-01
-bao kv put secret/lab/linux-02/admin username=admin password=demo-admin-02
-bao kv put secret/lab/linux-03/labuser username=labuser password=demo-labuser-03
+./vault-log/openbao/bootstrap-openbao.sh
+```
+
+Lo script:
+
+- inizializza OpenBao se non e' ancora inizializzato;
+- salva unseal key e root token solo localmente in `vault-log/openbao/bootstrap/`;
+- esegue unseal;
+- abilita `secret/` come KV v2;
+- crea alcuni segreti demo sotto `secret/lab/`;
+- crea la policy `lab-readonly`.
+
+Verifica:
+
+```sh
+docker compose exec -T -e BAO_ADDR=http://127.0.0.1:8200 openbao bao status
+docker compose exec -T -e BAO_ADDR=http://127.0.0.1:8200 -e BAO_TOKEN="$(cat vault-log/openbao/bootstrap/root-token)" openbao bao kv list secret/lab
 ```
 
 Questa PoC usa Teleport per accesso identity-based. Se il requisito futuro diventa "nessuna modifica ai nodi", il modello da valutare non e' l'agent Teleport sui nodi, ma OpenSSH CA, un bastion/gateway dedicato o un'integrazione custom.

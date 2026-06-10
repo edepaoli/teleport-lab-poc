@@ -78,3 +78,18 @@ tsh ssh root@vault-log
 ls -la /vault-log/logs
 tail -f /vault-log/logs/rsyslog/all.log
 ```
+
+## OpenBao
+
+OpenBao non usa un root token demo statico: il vault va inizializzato, unsealed e configurato.
+
+```sh
+./vault-log/openbao/bootstrap-openbao.sh
+```
+
+Lo script salva i materiali sensibili in `vault-log/openbao/bootstrap/`, directory ignorata da Git. Dopo il bootstrap:
+
+```sh
+docker compose exec -T -e BAO_ADDR=http://127.0.0.1:8200 openbao bao status
+docker compose exec -T -e BAO_ADDR=http://127.0.0.1:8200 -e BAO_TOKEN="$(cat vault-log/openbao/bootstrap/root-token)" openbao bao kv list secret/lab
+```

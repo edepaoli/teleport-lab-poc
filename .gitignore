@@ -4,6 +4,10 @@
 vault-log/logs/**
 !vault-log/logs/.gitkeep
 
+# Local OpenBao bootstrap material: unseal keys and root tokens.
+vault-log/openbao/bootstrap/**
+!vault-log/openbao/bootstrap/.gitkeep
+
 # Local self-signed proxy certificates.
 teleport/proxy-a/certs/*
 teleport/proxy-b/certs/*
