@@ -158,7 +158,69 @@ Sul nodo `vault-log` monta o rendi disponibile:
 
 In produzione puoi usare filesystem locale, NFS interno, volume dedicato o storage approvato dal laboratorio.
 
-## 8. Configurare Rsyslog Centrale
+## 8. Inizializzare OpenBao
+
+OpenBao e' il vault dei segreti, non il repository dei log. Nel laboratorio deve stare dietro al nodo operativo `vault-log` o in una rete raggiungibile solo dagli amministratori e dai servizi autorizzati.
+
+Per questa PoC Docker il bootstrap e' gia automatizzato:
+
+```sh
+./vault-log/openbao/bootstrap-openbao.sh
+```
+
+Lo script inizializza OpenBao, esegue unseal, abilita `secret/` come KV v2, crea segreti demo e salva root token/unseal key solo in `vault-log/openbao/bootstrap/`, directory ignorata da Git.
+
+In un laboratorio gia presente, la procedura equivalente e':
+
+```sh
+export BAO_ADDR=http://openbao.example.lab:8200
+bao operator init -key-shares=1 -key-threshold=1 -format=json > openbao-init.json
+chmod 600 openbao-init.json
+bao operator unseal <unseal-key>
+export BAO_TOKEN=<root-token>
+bao secrets enable -path=secret kv-v2
+```
+
+Per una PoC sono accettabili `key-shares=1` e `key-threshold=1`. In un ambiente condiviso o piu vicino alla produzione, aumenta le share, separa le chiavi tra piu custodi e conserva `openbao-init.json` fuori dal repository.
+
+Segreti demo coerenti con il lab:
+
+```sh
+bao kv put secret/lab/linux-01/root username=root password=demo-root-01
+bao kv put secret/lab/linux-02/admin username=admin password=demo-admin-02
+bao kv put secret/lab/linux-02/mario username=mario password='mariomariomario.'
+bao kv put secret/lab/linux-03/labuser username=labuser password=demo-labuser-03
+```
+
+Policy minima di sola lettura per validare l'accesso ai segreti demo:
+
+```hcl
+path "secret/data/lab/*" {
+  capabilities = ["read", "list"]
+}
+
+path "secret/metadata/lab/*" {
+  capabilities = ["read", "list"]
+}
+```
+
+Verifica:
+
+```sh
+bao status
+bao kv list secret/lab
+bao kv get -field=username secret/lab/linux-02/mario
+```
+
+Il risultato atteso e':
+
+```text
+Initialized: true
+Sealed: false
+username: mario
+```
+
+## 9. Configurare Rsyslog Centrale
 
 Il server rsyslog riceve log da nodi, Teleport e shipper:
 
@@ -191,7 +253,7 @@ template(
 *.* action(type="omfile" dynaFile="RemoteByHost" template="RemoteLine")
 ```
 
-## 9. Inoltrare Log E Audit
+## 10. Inoltrare Log E Audit
 
 Sorgenti minime:
 
@@ -203,7 +265,7 @@ Sorgenti minime:
 
 Puoi usare Fluent Bit, rsyslog client o agent SIEM gia presente. In un ambiente esistente evita di introdurre due agent se ne esiste gia uno approvato.
 
-## 10. Validare End-To-End
+## 11. Validare End-To-End
 
 Checklist:
 
@@ -215,6 +277,8 @@ tsh login --proxy=teleport.example.lab --user=mario.rossi
 tsh ls
 tsh ssh labuser@lab-linux-02
 tsh ssh root@vault-log
+bao status
+bao kv list secret/lab
 tail -f /vault-log/logs/rsyslog/all.log
 ```
 
@@ -230,10 +294,12 @@ Poi verifica:
 grep "lab-linux-02 test syslog" /vault-log/logs/rsyslog/all.log
 ```
 
-## 11. Errori Da Evitare
+## 12. Errori Da Evitare
 
 - Non trasformare ogni servizio Docker o processo interno in nodo Teleport.
 - Non usare token statici in un ambiente reale.
 - Non lasciare certificati self-signed se il lab deve testare WebAuthn in modo realistico.
+- Non committare root token, unseal key o dump di segreti OpenBao.
+- Non lasciare OpenBao sealed dopo un riavvio se il lab deve dimostrare accesso ai segreti.
 - Non usare OpenBao come log store: OpenBao serve ai segreti, rsyslog/SIEM ai log.
 - Non confondere il nodo `vault-log` con il servizio rsyslog: `vault-log` e' il punto operativo, rsyslog e' un servizio dietro di esso.
